@@ -19,7 +19,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from financial_report.config import (
     EQUITY_INDICES, BOND_INDICES, COMMODITY_INDICES,
-    SECTORS, SECTOR_TICKERS, C,
+    SECTORS, SECTOR_TICKERS, C, ANALYST_VIEWS,
 )
 
 rng = np.random.default_rng(42)   # reproducible
@@ -92,7 +92,7 @@ def simulate_market_overview() -> list[dict]:
     ytd_s  = datetime(2026, 1, 1)
     results = []
     for i, (name, (mu, sigma, p0, flow)) in enumerate(_INDEX_PARAMS.items()):
-        prices = _gbm(p0, 400, mu, sigma, seed=i * 7)
+        prices = _gbm(p0, 2520, mu, sigma, seed=i * 7)
         def ret(d0):
             w = prices[prices.index >= d0]
             if len(w) < 2:
@@ -195,7 +195,7 @@ def simulate_sector_data() -> list[dict]:
 
     results = []
     for i, (sector_name, (mu, sigma, p0, aum)) in enumerate(_SECTOR_PARAMS.items()):
-        prices = _gbm(p0, 400, mu, sigma, seed=i * 13 + 1)
+        prices = _gbm(p0, 2520, mu, sigma, seed=i * 13 + 1)
         meta   = SECTORS[sector_name]
 
         def ret(d0, p=prices):
@@ -220,14 +220,16 @@ def simulate_sector_data() -> list[dict]:
             })
 
         results.append({
-            "sector":     sector_name,
-            "etf":        meta["etf"],
-            "color":      meta["color"],
-            "return_ytd": ret(ytd_s),
-            "return_3m":  ret(end - timedelta(days=90)),
-            "return_1m":  ret(end - timedelta(days=30)),
-            "aum":        aum,
-            "tickers":    tickers,
+            "sector":        sector_name,
+            "etf":           meta["etf"],
+            "color":         meta["color"],
+            "return_ytd":    ret(ytd_s),
+            "return_3m":     ret(end - timedelta(days=90)),
+            "return_1m":     ret(end - timedelta(days=30)),
+            "aum":           aum,
+            "tickers":       tickers,
+            "prices":        prices,
+            "analyst_views": ANALYST_VIEWS.get(sector_name, {}),
         })
 
     results.sort(key=lambda x: x["aum"], reverse=True)
@@ -277,7 +279,7 @@ def simulate_macro_data() -> dict:
       • Unemployment trough ~3.4%, back up to ~4.1%
       • Payrolls strong, cooling late 2025
     """
-    n_months = 72   # 6 years
+    n_months = 120   # 10 years (Feb 2016 → Feb 2026)
 
     def _series(vals_tuple):
         """Build a pd.Series from explicit key-value list or GBM-like shape."""
@@ -285,24 +287,24 @@ def simulate_macro_data() -> dict:
         return _macro_series(start_val, n_months, mu, sigma, trend, seed)
 
     # ── Inflation ──────────────────────────────────────────────────────────
-    # CPI: rises to ~9% peak in month 28 (mid-2022), then disinflates
-    cpi_level = _macro_series(258, n_months, 0.35, 0.15, 0.01, seed=1)
+    # Starting from ~Feb 2016; CPI ~238, surges to ~9% YoY in 2022, disinflates to ~2.8% by 2026
+    cpi_level = _macro_series(238, n_months, 0.35, 0.15, 0.01, seed=1)
     cpi_yoy   = cpi_level.pct_change(12) * 100
 
-    core_cpi_level = _macro_series(264, n_months, 0.28, 0.10, 0.008, seed=2)
+    core_cpi_level = _macro_series(244, n_months, 0.28, 0.10, 0.008, seed=2)
     core_cpi_yoy   = core_cpi_level.pct_change(12) * 100
 
-    pce_level = _macro_series(110, n_months, 0.25, 0.12, 0.008, seed=3)
+    pce_level = _macro_series(102, n_months, 0.25, 0.12, 0.008, seed=3)
     pce_yoy   = pce_level.pct_change(12) * 100
 
-    core_pce_level = _macro_series(112, n_months, 0.22, 0.10, 0.007, seed=4)
+    core_pce_level = _macro_series(104, n_months, 0.22, 0.10, 0.007, seed=4)
     core_pce_yoy   = core_pce_level.pct_change(12) * 100
 
-    ppi_level = _macro_series(120, n_months, 0.50, 0.30, 0.005, seed=5)
+    ppi_level = _macro_series(110, n_months, 0.50, 0.30, 0.005, seed=5)
     ppi_yoy   = ppi_level.pct_change(12) * 100
 
-    # 5Y Breakeven: range 2.0–2.7
-    breakeven = _macro_series(2.15, n_months, 0.002, 0.04, 0.0, seed=6).clip(1.5, 3.5)
+    # 5Y Breakeven: range 1.5–3.0 over 10Y
+    breakeven = _macro_series(1.55, n_months, 0.005, 0.05, 0.0, seed=6).clip(1.0, 3.5)
 
     inflation = {
         "CPI (Headline)":  cpi_yoy.dropna(),
@@ -314,24 +316,24 @@ def simulate_macro_data() -> dict:
     }
 
     # ── Labor ─────────────────────────────────────────────────────────────
-    # Unemployment: 3.4 trough → 4.1 now
-    unemp = _macro_series(3.6, n_months, 0.01, 0.06, 0.003, seed=10).clip(3.0, 7.0)
+    # Unemployment: ~5.0% in 2016, trough ~3.4%, back to 4.1% by 2026
+    unemp = _macro_series(5.0, n_months, -0.02, 0.06, 0.0, seed=10).clip(3.0, 7.0)
 
     # NFP: monthly change in thousands – strong 2021-23, cooling
-    payrolls_level = _macro_series(145_000, n_months, 150, 80, 5, seed=11)
+    payrolls_level = _macro_series(143_000, n_months, 150, 80, 5, seed=11)
     payrolls_mom   = payrolls_level.diff().dropna()
 
-    # Job openings (JOLTS) – thousands, peaked ~12M, now ~8.5M
-    jolts = _macro_series(7_000, n_months, 60, 200, 2, seed=12).clip(4_000, 13_000)
+    # Job openings (JOLTS) – thousands, ~5.5M in 2016, peaked ~12M in 2022, now ~8.5M
+    jolts = _macro_series(5_500, n_months, 60, 200, 2, seed=12).clip(4_000, 13_000)
 
-    # Initial claims (thousands, weekly-ish but stored monthly avg)
-    claims = _macro_series(230, n_months, -0.3, 15, 0.2, seed=13).clip(180, 900)
+    # Initial claims (thousands)
+    claims = _macro_series(270, n_months, -0.3, 15, 0.2, seed=13).clip(180, 900)
 
-    # LFPR
-    lfpr = _macro_series(61.4, n_months, 0.02, 0.08, 0.005, seed=14).clip(59, 64)
+    # LFPR: ~63% in 2016, dropped during COVID, partially recovered
+    lfpr = _macro_series(63.0, n_months, -0.02, 0.08, 0.0, seed=14).clip(59, 64)
 
     # Avg hourly earnings YoY
-    ahe_level = _macro_series(28.0, n_months, 0.06, 0.05, 0.005, seed=15)
+    ahe_level = _macro_series(25.5, n_months, 0.06, 0.05, 0.005, seed=15)
     ahe_yoy   = ahe_level.pct_change(12) * 100
 
     labor = {
