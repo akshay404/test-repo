@@ -43,5 +43,4 @@ Temporary Items
 .apdisk
 __pycache__/
 *.pyc
-*.pdf
 *.png
