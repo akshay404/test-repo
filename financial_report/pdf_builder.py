@@ -87,8 +87,7 @@ def _new_page(section_title: str, description: str,
     ax_ftr.axis("off")
     ax_ftr.text(
         0.5, 0.5,
-        "For informational purposes only. All data is simulated.  "
-        "Sources: Yahoo Finance, FRED, BLS.",
+        "For informational purposes only.  Sources: Yahoo Finance, FRED, BLS.",
         fontsize=5.8, color="white", alpha=0.80,
         ha="center", va="center", transform=ax_ftr.transAxes,
     )
@@ -390,7 +389,8 @@ def _build_commentary_content(indices: list, sectors: list, macro: dict) -> dict
 
 
 def build_page_market_commentary(indices: list, sectors: list,
-                                 macro: dict) -> plt.Figure:
+                                 macro: dict,
+                                 data_is_live: bool = False) -> plt.Figure:
     """
     Page 1 – Executive market commentary.
 
@@ -398,9 +398,15 @@ def build_page_market_commentary(indices: list, sectors: list,
                          commodities, and macro backdrop.
     Right column (30 %): key stats boxes + themes + risk watchlist.
     """
+    src_note = (
+        "Sources: Yahoo Finance (prices/fundamentals), FRED (macro)."
+        if data_is_live else
+        "NOTE: Live market data unavailable in this environment — figures are statistically realistic "
+        "simulated data calibrated to Feb 2026.  Run on a networked machine for live figures."
+    )
     desc = (
         "Monthly executive summary covering global market conditions, sector themes, "
-        "macro backdrop, and key risks as of the report date.  All figures are simulated."
+        f"macro backdrop, and key risks as of the report date.  {src_note}"
     )
     fig = _new_page("Market Commentary", desc)
     d   = _build_commentary_content(indices, sectors, macro)
@@ -861,7 +867,7 @@ def build_pages_sector_history(sector_data: list) -> list:
         )
         fig.text(
             0.97, 0.478,
-            f"Top 10 holdings by index weight  ·  Source: simulated",
+            f"Top 10 holdings by index weight  ·  Source: Yahoo Finance / simulated fundamentals",
             fontsize=6, color=C["text2"], ha="right",
         )
 

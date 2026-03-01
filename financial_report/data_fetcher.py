@@ -273,13 +273,18 @@ def fetch_vix_data() -> dict | None:
 # ── Section 4 : Macro ─────────────────────────────────────────────────────────
 
 def _fred_series(series_id: str, start: datetime, end: datetime) -> pd.Series | None:
-    """Fetch a FRED series via pandas_datareader."""
+    """Fetch a FRED series via the public CSV endpoint (no API key, no pandas_datareader)."""
     try:
-        import pandas_datareader.data as web
-        df = web.DataReader(series_id, "fred", start, end)
-        s  = df.iloc[:, 0].dropna()
+        from io import StringIO
+        url  = f"https://fred.stlouisfed.org/graph/fredgraph.csv?id={series_id}"
+        resp = requests.get(url, timeout=15)
+        if resp.status_code != 200:
+            return None
+        s = pd.read_csv(StringIO(resp.text), index_col=0, parse_dates=True).iloc[:, 0]
         s.index = pd.to_datetime(s.index).tz_localize(None)
-        return s
+        s = s.replace(".", np.nan).astype(float).dropna()
+        s = s[(s.index >= start) & (s.index <= end)]
+        return s if len(s) > 0 else None
     except Exception as e:
         print(f"  [warn] FRED {series_id}: {e}")
         return None
