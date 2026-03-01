@@ -14,49 +14,49 @@ REPORT_TITLE = "Global Financial Markets Report"
 OUTPUT_PDF   = "financial_report_feb2026.pdf"
 OUTPUT_DIR   = "/home/user/test-repo"
 
-# ── Material Design colour palette ─────────────────────────────────────────────
+# ── Dark theme colour palette ───────────────────────────────────────────────────
 C = {
-    # Primary brand (Blue 800/900)
-    "primary":       "#1565C0",
-    "primary_light": "#1976D2",
-    "primary_dark":  "#0D47A1",
-    "primary_bg":    "#E3F2FD",
+    # Primary brand – deep navy header / brand bars
+    "primary":       "#1A3A6E",   # header background
+    "primary_light": "#3B82F6",   # bright blue accents / highlights
+    "primary_dark":  "#90CAF9",   # light blue – text drawn ON primary_bg backgrounds
+    "primary_bg":    "#0A1929",   # dark navy – description bands, table sub-headers
 
-    # Accent (Amber)
-    "accent":        "#FF8F00",
-    "accent_light":  "#FFC107",
+    # Accent (Amber – stays bright for contrast on dark)
+    "accent":        "#F59E0B",
+    "accent_light":  "#FCD34D",
 
     # Semantic
-    "pos":           "#2E7D32",   # Green 800
-    "pos_light":     "#43A047",   # Green 600
-    "pos_bg":        "#E8F5E9",   # Green 50
-    "neg":           "#C62828",   # Red 800
-    "neg_light":     "#E53935",   # Red 600
-    "neg_bg":        "#FFEBEE",   # Red 50
+    "pos":           "#16A34A",   # deep green (border / strong positive)
+    "pos_light":     "#4ADE80",   # bright green – text on dark bg
+    "pos_bg":        "#0F2A1A",   # very dark green fill
+    "neg":           "#DC2626",   # deep red
+    "neg_light":     "#F87171",   # bright red – text on dark bg
+    "neg_bg":        "#2A0F0F",   # very dark red fill
 
-    # Neutrals
-    "bg":            "#FAFAFA",   # Grey 50
-    "surface":       "#FFFFFF",
-    "text":          "#212121",   # Grey 900
-    "text2":         "#616161",   # Grey 700
-    "hint":          "#9E9E9E",   # Grey 500
-    "divider":       "#E0E0E0",   # Grey 300
-    "grid":          "#F5F5F5",   # Grey 100
+    # Neutrals (dark mode)
+    "bg":            "#0D1117",   # page background
+    "surface":       "#161B22",   # chart / table cell surface
+    "text":          "#E6EDF3",   # primary text (near-white)
+    "text2":         "#8B949E",   # secondary text (medium grey)
+    "hint":          "#6E7681",   # hint / disabled text
+    "divider":       "#30363D",   # divider lines
+    "grid":          "#21262D",   # chart grid lines
 
-    # Sequential chart colours
-    "blue":          "#1976D2",
-    "red":           "#E53935",
-    "green":         "#43A047",
-    "orange":        "#FB8C00",
-    "purple":        "#8E24AA",
-    "teal":          "#00897B",
-    "cyan":          "#00ACC1",
-    "indigo":        "#3949AB",
-    "pink":          "#D81B60",
-    "deep_orange":   "#F4511E",
-    "brown":         "#795548",
-    "grey":          "#757575",
-    "lime":          "#827717",
+    # Sequential chart colours – vivid, high contrast on dark backgrounds
+    "blue":          "#58A6FF",
+    "red":           "#F85149",
+    "green":         "#3FB950",
+    "orange":        "#F0883E",
+    "purple":        "#BC8CFF",
+    "teal":          "#39D0D8",
+    "cyan":          "#56D4F8",
+    "indigo":        "#7B93EC",
+    "pink":          "#F778A1",
+    "deep_orange":   "#FF8C4A",
+    "brown":         "#CB8B4E",
+    "grey":          "#8B949E",
+    "lime":          "#C5D958",
 }
 
 # Sequential palette list (for iterating over series)

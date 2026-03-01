@@ -27,6 +27,7 @@ from financial_report.data_simulator import (
     simulate_macro_data       as fetch_macro_data,
 )
 from financial_report.pdf_builder import (
+    build_page_market_commentary,
     build_page_market_overview,
     build_page_sector_analysis,
     build_pages_sector_history,
@@ -60,18 +61,21 @@ def main():
     print("\n  Building PDF pages …")
     pages = []
 
-    print("  • Page 1  – Market Overview (detailed 2-row mini-charts)")
+    print("  • Page 1  – Market Commentary (executive summary)")
+    pages.append(build_page_market_commentary(indices, sectors, macro))
+
+    print("  • Page 2  – Market Overview (detailed 2-row mini-charts)")
     pages.append(build_page_market_overview(indices))
 
-    print("  • Page 2  – Sector Analysis (table + analyst views)")
+    print("  • Page 3  – Sector Analysis (table + analyst views)")
     pages.append(build_page_sector_analysis(sectors))
 
-    print(f"  • Pages 3–{2 + len(sectors)}  – Sector ETF 10Y History Charts (1/page, top/bottom-5 table)")
+    print(f"  • Pages 4–{3 + len(sectors)}  – Sector ETF 10Y History Charts (1/page, top/bottom-5 table)")
     sector_pages = build_pages_sector_history(sectors)
     pages.extend(sector_pages)
     print(f"      → {len(sector_pages)} pages generated")
 
-    infl_start = 2 + len(sector_pages) + 1
+    infl_start = 3 + len(sector_pages) + 1
     print(f"  • Pages {infl_start}–{infl_start + 1}  – Inflation Indicators (3 charts + summary per page)")
     infl_pages = build_pages_inflation(macro)
     pages.extend(infl_pages)
@@ -85,8 +89,8 @@ def main():
 
     print(f"\n  Total pages: {len(pages)}")
 
-    # ── 3. Save PDF ────────────────────────────────────────────────────────
-    pdf_path = assemble_report(pages)
+    # ── 3. Save PDF (keep figures open so fallback PNG export can use them) ──
+    pdf_path = assemble_report(pages, close_figures=False)
 
     # ── 4. Export PNG previews ─────────────────────────────────────────────
     print("\n  Exporting page previews as PNG …")
@@ -98,28 +102,20 @@ def main():
             img.save(png_path, "PNG")
             print(f"    → {png_path}")
     except ImportError:
+        # pdf2image not available – save directly from the still-open figures.
         import matplotlib.pyplot as plt
         from financial_report.config import OUTPUT_DIR, OUTPUT_PDF as _OUTPUT_PDF
 
-        builders_args = [
-            ("page1", build_page_market_overview, [indices]),
-            ("page2", build_page_sector_analysis, [sectors]),
-        ]
-        for p_idx, sector_fig in enumerate(build_pages_sector_history(sectors), start=3):
-            builders_args.append((f"page{p_idx}", lambda *a, fig=sector_fig: fig, []))
-        for p_idx, infl_fig in enumerate(build_pages_inflation(macro),
-                                          start=3 + len(sectors)):
-            builders_args.append((f"page{p_idx}", lambda *a, fig=infl_fig: fig, []))
-        for p_idx, labor_fig in enumerate(build_pages_labor(macro),
-                                           start=3 + len(sectors) + 2):
-            builders_args.append((f"page{p_idx}", lambda *a, fig=labor_fig: fig, []))
-
-        for page_id, builder, args in builders_args:
-            fig = builder(*args)
-            out = os.path.join(OUTPUT_DIR, _OUTPUT_PDF.replace(".pdf", f"_{page_id}.png"))
+        for i, fig in enumerate(pages, start=1):
+            out = os.path.join(OUTPUT_DIR,
+                               _OUTPUT_PDF.replace(".pdf", f"_page{i}.png"))
             fig.savefig(out, dpi=120, bbox_inches="tight")
-            plt.close(fig)
             print(f"    → {out}")
+
+    # ── 5. Close figures ───────────────────────────────────────────────────
+    import matplotlib.pyplot as plt
+    for fig in pages:
+        plt.close(fig)
 
     print("\n  Done!  Report ready at:", pdf_path)
     return pdf_path

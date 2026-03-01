@@ -33,16 +33,21 @@ from financial_report.charts import (
     _val_color,
 )
 
-# ── Global matplotlib style ────────────────────────────────────────────────────
+# ── Global matplotlib style (dark theme) ───────────────────────────────────────
 plt.rcParams.update({
-    "font.family":       "DejaVu Sans",
-    "font.size":         8,
-    "axes.facecolor":    C["surface"],
-    "figure.facecolor":  C["bg"],
-    "text.color":        C["text"],
-    "axes.labelcolor":   C["text2"],
-    "xtick.color":       C["text2"],
-    "ytick.color":       C["text2"],
+    "font.family":        "DejaVu Sans",
+    "font.size":          8,
+    "figure.facecolor":   C["bg"],
+    "axes.facecolor":     C["surface"],
+    "axes.edgecolor":     C["divider"],
+    "text.color":         C["text"],
+    "axes.labelcolor":    C["text2"],
+    "xtick.color":        C["text2"],
+    "ytick.color":        C["text2"],
+    "grid.color":         C["grid"],
+    "legend.facecolor":   C["surface"],
+    "legend.edgecolor":   C["divider"],
+    "legend.labelcolor":  C["text"],
 })
 
 
@@ -78,7 +83,7 @@ def _new_page(section_title: str, description: str,
 
     # Footer (bottom 2.5 %)
     ax_ftr = fig.add_axes([0, 0, 1, 0.025])
-    ax_ftr.set_facecolor(C["primary_dark"])
+    ax_ftr.set_facecolor(C["primary"])
     ax_ftr.axis("off")
     ax_ftr.text(
         0.5, 0.5,
@@ -294,7 +299,345 @@ def _draw_macro_summary_panel(fig, bullets: list, commentary: str,
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Page 1 – Market Overview
+# Page 1 – Market Commentary  (executive summary / intro)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _build_commentary_content(indices: list, sectors: list, macro: dict) -> dict:
+    """
+    Derive all data-driven narrative fragments from simulated data
+    so the commentary stays internally consistent with the report numbers.
+    """
+    # ── Index snapshot ──────────────────────────────────────────────────────
+    eq   = [r for r in indices if r["category"] == "Equity"]
+    fi   = [r for r in indices if r["category"] == "Fixed Income"]
+    cmdty= [r for r in indices if r["category"] == "Commodities"]
+
+    def _avg_ytd(rows):
+        vals = [r["return_ytd"] for r in rows if r.get("return_ytd") is not None
+                and not pd.isna(r["return_ytd"])]
+        return sum(vals) / len(vals) if vals else 0.0
+
+    eq_avg   = _avg_ytd(eq)
+    fi_avg   = _avg_ytd(fi)
+    cmdty_avg= _avg_ytd(cmdty)
+
+    best_idx  = max(indices, key=lambda r: r.get("return_ytd") or -999)
+    worst_idx = min(indices, key=lambda r: r.get("return_ytd") or 999)
+    best_sec  = max(sectors,  key=lambda s: s.get("return_ytd") or -999)
+    worst_sec = min(sectors,  key=lambda s: s.get("return_ytd") or 999)
+
+    sp500 = next((r for r in indices if "S&P" in r["name"]), None)
+    sp_ytd = sp500["return_ytd"] if sp500 else 0.0
+    sp_cur = sp500["current"]    if sp500 else 0.0
+
+    nasdaq = next((r for r in indices if "NASDAQ" in r["name"]), None)
+    nasdaq_ytd = nasdaq["return_ytd"] if nasdaq else 0.0
+
+    gold  = next((r for r in indices if "Gold"    in r["name"]), None)
+    crude = next((r for r in indices if "WTI"     in r["name"]), None)
+    tlt   = next((r for r in indices if "20Y"     in r["name"]), None)
+    hy    = next((r for r in indices if "High Yield" in r["name"]), None)
+
+    # ── Macro snapshot ──────────────────────────────────────────────────────
+    infl    = macro.get("inflation", {})
+    labor   = macro.get("labor", {})
+    cpi_s   = infl.get("CPI (Headline)")
+    cpi_val = float(cpi_s.dropna().iloc[-1]) if cpi_s is not None else 3.2
+    pce_s   = infl.get("Core PCE")
+    pce_val = float(pce_s.dropna().iloc[-1]) if pce_s is not None else 2.8
+    un_s    = labor.get("Unemployment Rate")
+    un_val  = float(un_s.dropna().iloc[-1]) if un_s is not None else 4.1
+    nfp_s   = labor.get("Nonfarm Payrolls")
+    nfp_val = float(nfp_s.dropna().iloc[-1]) if nfp_s is not None else 150.0
+
+    # ── Regime description ──────────────────────────────────────────────────
+    if eq_avg > 8:
+        regime = "Risk-on"
+        regime_desc = "broad-based equity strength"
+    elif eq_avg > 2:
+        regime = "Cautiously constructive"
+        regime_desc = "selective equity gains amid mixed macro signals"
+    elif eq_avg > -2:
+        regime = "Range-bound"
+        regime_desc = "indecisive price action across asset classes"
+    else:
+        regime = "Risk-off"
+        regime_desc = "broad equity weakness and flight to quality"
+
+    # ── Fed stance ──────────────────────────────────────────────────────────
+    if cpi_val > 4.0:
+        fed_stance = "restrictive — with further tightening not ruled out"
+        fed_short  = "Rates: Restrictive"
+    elif cpi_val > 2.5:
+        fed_stance = "on hold, balancing disinflation progress against labour resilience"
+        fed_short  = "Rates: On Hold"
+    else:
+        fed_stance = "pivoting toward easing, with markets pricing 2–3 cuts in 2026"
+        fed_short  = "Rates: Easing Bias"
+
+    return dict(
+        eq_avg=eq_avg, fi_avg=fi_avg, cmdty_avg=cmdty_avg,
+        best_idx=best_idx, worst_idx=worst_idx,
+        best_sec=best_sec, worst_sec=worst_sec,
+        sp_ytd=sp_ytd, sp_cur=sp_cur,
+        nasdaq_ytd=nasdaq_ytd,
+        gold=gold, crude=crude, tlt=tlt, hy=hy,
+        cpi_val=cpi_val, pce_val=pce_val,
+        un_val=un_val, nfp_val=nfp_val,
+        regime=regime, regime_desc=regime_desc,
+        fed_stance=fed_stance, fed_short=fed_short,
+    )
+
+
+def build_page_market_commentary(indices: list, sectors: list,
+                                 macro: dict) -> plt.Figure:
+    """
+    Page 1 – Executive market commentary.
+
+    Left column  (65 %): narrative paragraphs covering equities, fixed income,
+                         commodities, and macro backdrop.
+    Right column (30 %): key stats boxes + themes + risk watchlist.
+    """
+    desc = (
+        "Monthly executive summary covering global market conditions, sector themes, "
+        "macro backdrop, and key risks as of the report date.  All figures are simulated."
+    )
+    fig = _new_page("Market Commentary", desc)
+    d   = _build_commentary_content(indices, sectors, macro)
+
+    # ── Helpers ─────────────────────────────────────────────────────────────
+    def _panel(rect, fc=C["surface"], border_color=None):
+        ax = fig.add_axes(rect)
+        ax.set_facecolor(fc)
+        ax.axis("off")
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        if border_color:
+            for spine in ax.spines.values():
+                spine.set_visible(True)
+                spine.set_color(border_color)
+                spine.set_linewidth(0.5)
+        return ax
+
+    def _heading(ax, y, text, size=9, color=C["primary_light"]):
+        ax.text(0.0, y, text, fontsize=size, fontweight="bold",
+                color=color, va="top", ha="left", transform=ax.transAxes)
+
+    def _body(ax, y, text, size=7.2, color=C["text"], max_chars=82):
+        wrapped = _wrap_text(text, max_chars)
+        ax.text(0.0, y, wrapped, fontsize=size, color=color,
+                va="top", ha="left", transform=ax.transAxes,
+                linespacing=1.5, clip_on=True)
+
+    # ── Left narrative column ────────────────────────────────────────────────
+    ax_l = _panel([0.03, 0.065, 0.61, 0.79])
+
+    # ── Section: Executive Summary ──
+    _heading(ax_l, 0.985, "Executive Summary")
+    exec_text = (
+        f"Global financial markets closed February 2026 in a {d['regime'].lower()} posture, "
+        f"characterised by {d['regime_desc']}. "
+        f"The S&P 500 {'gained' if d['sp_ytd'] >= 0 else 'fell'} {abs(d['sp_ytd']):.1f}% "
+        f"year-to-date, with large-cap technology continuing to lead on the back of AI-related "
+        f"earnings momentum. The NASDAQ 100 {'advanced' if d['nasdaq_ytd'] >= 0 else 'declined'} "
+        f"{abs(d['nasdaq_ytd']):.1f}% YTD, while broader indices reflected more mixed returns "
+        f"as rate-sensitive sectors lagged. Cross-asset, equities "
+        f"averaged {d['eq_avg']:+.1f}% YTD, fixed income {d['fi_avg']:+.1f}%, "
+        f"and commodities {d['cmdty_avg']:+.1f}%."
+    )
+    _body(ax_l, 0.942, exec_text)
+
+    # ── Section: Equity Markets ──
+    _heading(ax_l, 0.790, "Equity Markets")
+    eq_text = (
+        f"The best-performing benchmark in the period was {d['best_idx']['name']} "
+        f"({d['best_idx']['return_ytd']:+.1f}% YTD), driven by strong earnings revisions "
+        f"and favourable sector composition. At the sector level, "
+        f"{d['best_sec']['sector']} ({d['best_sec']['return_ytd']:+.1f}% YTD) led the market, "
+        f"while {d['worst_sec']['sector']} ({d['worst_sec']['return_ytd']:+.1f}% YTD) lagged "
+        f"amid headwinds from {'rising rates and regulatory uncertainty' if 'Utilit' in d['worst_sec']['sector'] or 'Real' in d['worst_sec']['sector'] else 'earnings misses and softening demand'}. "
+        f"Emerging markets remained under pressure ({d['worst_idx']['name']} "
+        f"{d['worst_idx']['return_ytd']:+.1f}% YTD), with dollar strength and geopolitical "
+        f"uncertainty weighing on sentiment."
+    )
+    _body(ax_l, 0.748, eq_text)
+
+    # ── Section: Fixed Income & Rates ──
+    _heading(ax_l, 0.597, "Fixed Income & Rates")
+    tlt_ytd  = d["tlt"]["return_ytd"]  if d["tlt"]  else -4.0
+    hy_ytd   = d["hy"]["return_ytd"]   if d["hy"]   else +3.5
+    fi_text = (
+        f"The Federal Reserve held policy {'steady' if 'hold' in d['fed_stance'].lower() else 'at current levels'}, "
+        f"keeping the Fed Funds target range unchanged while reiterating data-dependency. "
+        f"Long-duration Treasuries {'rallied' if tlt_ytd >= 0 else 'sold off'} "
+        f"({abs(tlt_ytd):.1f}% YTD), as markets debated the trajectory of terminal rates. "
+        f"Credit spreads remained {'broadly contained' if hy_ytd >= 0 else 'under modest pressure'}, "
+        f"with high-yield {'+' if hy_ytd >= 0 else ''}{hy_ytd:.1f}% YTD. "
+        f"The investment-grade corporate market held up relatively well, underpinned by "
+        f"solid balance sheets and limited near-term refinancing risk. "
+        f"The Fed is currently {d['fed_stance']}."
+    )
+    _body(ax_l, 0.556, fi_text)
+
+    # ── Section: Commodities ──
+    _heading(ax_l, 0.418, "Commodities")
+    gold_ytd  = d["gold"]["return_ytd"]  if d["gold"]  else +8.0
+    crude_ytd = d["crude"]["return_ytd"] if d["crude"] else -5.0
+    cmdty_text = (
+        f"Gold {'extended its rally' if gold_ytd > 5 else 'moved modestly higher' if gold_ytd > 0 else 'retreated'} "
+        f"({gold_ytd:+.1f}% YTD), supported by central bank demand and geopolitical hedging. "
+        f"WTI crude oil {'gained' if crude_ytd >= 0 else 'declined'} {abs(crude_ytd):.1f}% YTD, "
+        f"reflecting {'supply discipline from OPEC+ and firm demand' if crude_ytd >= 0 else 'demand uncertainty and rising non-OPEC supply offsetting OPEC+ cuts'}. "
+        f"Industrial metals were mixed: copper benefited from China stimulus hopes, "
+        f"while natural gas remained volatile given storage dynamics and weather effects."
+    )
+    _body(ax_l, 0.376, cmdty_text)
+
+    # ── Section: Macro Backdrop ──
+    _heading(ax_l, 0.245, "Macro Backdrop")
+    macro_text = (
+        f"The US economy continued its resilient expansion heading into February 2026. "
+        f"Headline CPI stood at {d['cpi_val']:.1f}% YoY, with Core PCE at {d['pce_val']:.1f}% — "
+        f"{'still above' if d['pce_val'] > 2.0 else 'near'} the Fed's 2% target. "
+        f"The labour market remained {'tight' if d['un_val'] < 4.2 else 'resilient'}, "
+        f"with unemployment at {d['un_val']:.1f}% and nonfarm payrolls printing "
+        f"{d['nfp_val']:+.0f}K in the latest month. "
+        f"Consumer spending has been supported by real wage growth, though some moderation "
+        f"is expected as excess savings are depleted. Global growth diverged: the Eurozone "
+        f"showed tentative stabilisation while China's recovery remained uneven."
+    )
+    _body(ax_l, 0.203, macro_text)
+
+    # ── Right column: stats + themes ────────────────────────────────────────
+    rx = 0.66   # right column left edge
+    rw = 0.31   # right column width
+
+    # ── Market Regime box ──
+    ax_reg = _panel([rx, 0.755, rw, 0.105], fc=C["primary_bg"])
+    ax_reg.add_patch(mpatches.Rectangle(
+        (0, 0), 0.006, 1.0, facecolor=C["accent"],
+        transform=ax_reg.transAxes, clip_on=True, zorder=3))
+    ax_reg.text(0.018, 0.88, "MARKET REGIME", fontsize=6.5, fontweight="bold",
+                color=C["primary_dark"], va="top", transform=ax_reg.transAxes)
+    ax_reg.text(0.018, 0.62, d["regime"],
+                fontsize=11, fontweight="bold", color=C["accent"],
+                va="top", transform=ax_reg.transAxes)
+    ax_reg.text(0.018, 0.24, d["fed_short"],
+                fontsize=7.5, color=C["text2"], va="top", transform=ax_reg.transAxes)
+
+    # ── Key Stats box ──
+    ax_stats = _panel([rx, 0.565, rw, 0.175], fc=C["surface"])
+    ax_stats.add_patch(mpatches.Rectangle(
+        (0, 0.92), 1.0, 0.08, facecolor=C["primary"],
+        transform=ax_stats.transAxes, clip_on=True, zorder=2))
+    ax_stats.text(0.5, 0.96, "KEY STATS — FEB 2026", fontsize=6.5,
+                  fontweight="bold", color="white", ha="center", va="center",
+                  transform=ax_stats.transAxes)
+
+    stats = [
+        ("S&P 500 YTD",    f"{d['sp_ytd']:+.1f}%",   _val_color(d["sp_ytd"])),
+        ("NASDAQ 100 YTD", f"{d['nasdaq_ytd']:+.1f}%", _val_color(d["nasdaq_ytd"])),
+        ("Top Sector",     d["best_sec"]["sector"][:16], C["pos_light"]),
+        ("CPI (Headline)", f"{d['cpi_val']:.1f}% YoY",
+         C["neg_light"] if d["cpi_val"] > 3 else C["pos_light"]),
+        ("Unemployment",   f"{d['un_val']:.1f}%",
+         C["pos_light"] if d["un_val"] < 4.5 else C["neg_light"]),
+        ("NFP (Latest)",   f"{d['nfp_val']:+.0f}K",   _val_color(d["nfp_val"])),
+    ]
+    row_h_s = 0.88 / len(stats)
+    for i, (label, val, vc) in enumerate(stats):
+        y  = 0.88 - i * row_h_s
+        bg = C["bg"] if i % 2 == 0 else C["surface"]
+        ax_stats.add_patch(mpatches.Rectangle(
+            (0, y - row_h_s), 1.0, row_h_s, facecolor=bg,
+            transform=ax_stats.transAxes, clip_on=True, zorder=1))
+        ax_stats.text(0.04, y - row_h_s / 2, label, fontsize=6.5,
+                      color=C["text2"], va="center", transform=ax_stats.transAxes)
+        ax_stats.text(0.96, y - row_h_s / 2, val,   fontsize=6.8,
+                      color=vc, va="center", ha="right", fontweight="bold",
+                      transform=ax_stats.transAxes)
+
+    # ── Key Themes box ──
+    ax_th = _panel([rx, 0.37, rw, 0.180], fc=C["surface"])
+    ax_th.add_patch(mpatches.Rectangle(
+        (0, 0.91), 1.0, 0.09, facecolor=C["primary"],
+        transform=ax_th.transAxes, clip_on=True, zorder=2))
+    ax_th.text(0.5, 0.955, "KEY THEMES", fontsize=6.5, fontweight="bold",
+               color="white", ha="center", va="center", transform=ax_th.transAxes)
+    themes = [
+        "AI capital expenditure cycle driving tech outperformance",
+        "Disinflation progress — Fed rate-cut trajectory in focus",
+        "US exceptionalism vs. slowing global growth divergence",
+        "Geopolitical risk premium embedded in energy & gold",
+        "Credit resilience underpins risk appetite",
+    ]
+    t_h = 0.88 / len(themes)
+    for i, theme in enumerate(themes):
+        y_t = 0.88 - i * t_h
+        ax_th.add_patch(mpatches.Rectangle(
+            (0, y_t - t_h), 1.0, t_h, facecolor=C["bg"] if i % 2 == 0 else C["surface"],
+            transform=ax_th.transAxes, clip_on=True, zorder=1))
+        ax_th.text(0.04, y_t - t_h / 2, f"• {theme}", fontsize=6.2,
+                   color=C["text"], va="center", transform=ax_th.transAxes,
+                   clip_on=True)
+
+    # ── Risks to Watch box ──
+    ax_risk = _panel([rx, 0.190, rw, 0.165], fc=C["surface"])
+    ax_risk.add_patch(mpatches.Rectangle(
+        (0, 0.91), 1.0, 0.09, facecolor=C["neg"],
+        transform=ax_risk.transAxes, clip_on=True, zorder=2))
+    ax_risk.text(0.5, 0.955, "RISKS TO WATCH", fontsize=6.5, fontweight="bold",
+                 color="white", ha="center", va="center", transform=ax_risk.transAxes)
+    risks = [
+        "Re-acceleration of inflation derailing rate-cut path",
+        "Labour market softening faster than expected",
+        "Geopolitical escalation disrupting energy supply",
+        "China property sector tail-risk re-emerging",
+    ]
+    r_h = 0.88 / len(risks)
+    for i, risk in enumerate(risks):
+        y_r = 0.88 - i * r_h
+        ax_risk.add_patch(mpatches.Rectangle(
+            (0, y_r - r_h), 1.0, r_h, facecolor=C["neg_bg"] if i % 2 == 0 else C["surface"],
+            transform=ax_risk.transAxes, clip_on=True, zorder=1))
+        ax_risk.text(0.04, y_r - r_h / 2, f"⚠  {risk}", fontsize=6.0,
+                     color=C["neg_light"], va="center", transform=ax_risk.transAxes,
+                     clip_on=True)
+
+    # ── Outlook one-liner at bottom ──
+    ax_out = _panel([rx, 0.065, rw, 0.110], fc=C["primary_bg"])
+    ax_out.add_patch(mpatches.Rectangle(
+        (0, 0), 0.006, 1.0, facecolor=C["primary_light"],
+        transform=ax_out.transAxes, clip_on=True, zorder=3))
+    ax_out.text(0.018, 0.90, "OUTLOOK", fontsize=6.5, fontweight="bold",
+                color=C["primary_dark"], va="top", transform=ax_out.transAxes)
+    if d["eq_avg"] > 5:
+        outlook_txt = (
+            "Constructive on equities near term, with AI-driven earnings upside "
+            "offsetting valuation concerns. Maintain duration underweight; "
+            "favour quality credit over IG rates."
+        )
+    elif d["eq_avg"] > 0:
+        outlook_txt = (
+            "Modestly positive risk posture. Selective equity exposure favoured; "
+            "monitor inflation prints closely for Fed pivot catalysts. "
+            "Overweight gold and short duration."
+        )
+    else:
+        outlook_txt = (
+            "Defensive posture warranted. Reduce risk exposure, overweight "
+            "high-quality bonds and gold. Watch for stabilisation signals "
+            "before adding cyclical risk."
+        )
+    ax_out.text(0.018, 0.65, _wrap_text(outlook_txt, 44),
+                fontsize=6.2, color=C["text"], va="top",
+                transform=ax_out.transAxes, linespacing=1.4, clip_on=True)
+
+    return fig
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Page 2 – Market Overview
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def build_page_market_overview(indices: list) -> plt.Figure:
@@ -688,11 +1031,14 @@ def build_page_labor(macro: dict) -> plt.Figure:
 # PDF assembler
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def assemble_report(pages: list) -> str:
+def assemble_report(pages: list, close_figures: bool = True) -> str:
+    """Save all pages to a PDF.  Set close_figures=False to keep figures open
+    so the caller can export PNGs before closing them."""
     output_path = os.path.join(OUTPUT_DIR, OUTPUT_PDF)
     with PdfPages(output_path) as pdf:
         for fig in pages:
             pdf.savefig(fig, bbox_inches="tight", dpi=PAGE_DPI)
-            plt.close(fig)
+            if close_figures:
+                plt.close(fig)
     print(f"\n  PDF saved → {output_path}")
     return output_path
