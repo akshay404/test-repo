@@ -9,11 +9,11 @@ Run with:
 Produces:  financial_report_feb2026.pdf  in the project root.
 
 Page structure:
-  1   – Market Overview
-  2   – Equity Sector Analysis  (bar chart + summary table with analyst views)
-  3–8 – Sector ETF 10Y History Charts  (2 per page, 6 pages)
-  9   – Inflation Indicators  (10Y, annotated)
-  10  – Labor Market  (10Y, annotated)
+  1    – Market Overview  (2-row detailed mini-charts)
+  2    – Equity Sector Analysis  (table + bar chart + analyst views)
+  3–13 – Sector ETF 10Y History Charts  (1 per page, top/bottom-5 performers)
+  14–15 – Inflation Indicators  (3 charts + macro summary per page)
+  16–17 – Labor Market           (3 charts + macro summary per page)
 """
 
 import sys
@@ -30,8 +30,8 @@ from financial_report.pdf_builder import (
     build_page_market_overview,
     build_page_sector_analysis,
     build_pages_sector_history,
-    build_page_inflation,
-    build_page_labor,
+    build_pages_inflation,
+    build_pages_labor,
     assemble_report,
 )
 
@@ -60,23 +60,28 @@ def main():
     print("\n  Building PDF pages …")
     pages = []
 
-    print("  • Page 1  – Market Overview")
+    print("  • Page 1  – Market Overview (detailed 2-row mini-charts)")
     pages.append(build_page_market_overview(indices))
 
     print("  • Page 2  – Sector Analysis (table + analyst views)")
     pages.append(build_page_sector_analysis(sectors))
 
-    print("  • Pages 3–8  – Sector ETF 10Y History Charts (2/page)")
+    print(f"  • Pages 3–{2 + len(sectors)}  – Sector ETF 10Y History Charts (1/page, top/bottom-5 table)")
     sector_pages = build_pages_sector_history(sectors)
     pages.extend(sector_pages)
     print(f"      → {len(sector_pages)} pages generated")
 
-    page_num = 2 + len(sector_pages) + 1
-    print(f"  • Page {page_num}  – Inflation Indicators (10Y)")
-    pages.append(build_page_inflation(macro))
+    infl_start = 2 + len(sector_pages) + 1
+    print(f"  • Pages {infl_start}–{infl_start + 1}  – Inflation Indicators (3 charts + summary per page)")
+    infl_pages = build_pages_inflation(macro)
+    pages.extend(infl_pages)
+    print(f"      → {len(infl_pages)} pages generated")
 
-    print(f"  • Page {page_num + 1}  – Labor Market (10Y)")
-    pages.append(build_page_labor(macro))
+    labor_start = infl_start + len(infl_pages)
+    print(f"  • Pages {labor_start}–{labor_start + 1}  – Labor Market (3 charts + summary per page)")
+    labor_pages = build_pages_labor(macro)
+    pages.extend(labor_pages)
+    print(f"      → {len(labor_pages)} pages generated")
 
     print(f"\n  Total pages: {len(pages)}")
 
@@ -97,13 +102,17 @@ def main():
         from financial_report.config import OUTPUT_DIR, OUTPUT_PDF as _OUTPUT_PDF
 
         builders_args = [
-            ("page1",  build_page_market_overview,  [indices]),
-            ("page2",  build_page_sector_analysis,  [sectors]),
+            ("page1", build_page_market_overview, [indices]),
+            ("page2", build_page_sector_analysis, [sectors]),
         ]
         for p_idx, sector_fig in enumerate(build_pages_sector_history(sectors), start=3):
             builders_args.append((f"page{p_idx}", lambda *a, fig=sector_fig: fig, []))
-        builders_args.append((f"page{len(builders_args)+1}", build_page_inflation, [macro]))
-        builders_args.append((f"page{len(builders_args)+1}", build_page_labor,     [macro]))
+        for p_idx, infl_fig in enumerate(build_pages_inflation(macro),
+                                          start=3 + len(sectors)):
+            builders_args.append((f"page{p_idx}", lambda *a, fig=infl_fig: fig, []))
+        for p_idx, labor_fig in enumerate(build_pages_labor(macro),
+                                           start=3 + len(sectors) + 2):
+            builders_args.append((f"page{p_idx}", lambda *a, fig=labor_fig: fig, []))
 
         for page_id, builder, args in builders_args:
             fig = builder(*args)

@@ -68,6 +68,195 @@ def draw_sparkline(ax, prices: pd.Series, color: str):
     ax.set_xlim(0, len(norm) - 1)
 
 
+# ── Detailed index mini-chart (for Market Overview bottom strip) ───────────────
+
+def draw_index_mini_chart(ax, prices: pd.Series, color: str,
+                          name: str, return_ytd: float):
+    """
+    Detailed mini-chart for a single market index.
+
+    Shows:
+      • Normalised price line (100 = start) with above/below fills
+      • 50d SMA (dashed amber) and 200d SMA (dash-dot grey)
+      • ATH vertical marker (green dashed) and period Low (red dashed)
+      • Year axis labels every 2 years
+    """
+    if prices is None or len(prices) < 50:
+        ax.axis("off")
+        ax.text(0.5, 0.5, "N/A", ha="center", va="center",
+                fontsize=5, color=C["hint"], transform=ax.transAxes)
+        return
+
+    ax.set_facecolor(C["surface"])
+    for spine in ["top", "right"]:
+        ax.spines[spine].set_visible(False)
+    for spine in ["left", "bottom"]:
+        ax.spines[spine].set_color(C["divider"])
+        ax.spines[spine].set_linewidth(0.5)
+
+    norm = prices / prices.iloc[0] * 100
+
+    # Price fill + line
+    ax.fill_between(norm.index, norm.values, 100,
+                    where=(norm.values >= 100), alpha=0.12, color=color, zorder=1)
+    ax.fill_between(norm.index, norm.values, 100,
+                    where=(norm.values < 100), alpha=0.08, color=C["neg"], zorder=1)
+    ax.plot(norm.index, norm.values, color=color, linewidth=0.9,
+            zorder=3, solid_capstyle="round")
+
+    # SMAs
+    sma50  = norm.rolling(50).mean()
+    sma200 = norm.rolling(200).mean()
+    ax.plot(sma50.index,  sma50.values,  color=C["accent"], linewidth=0.65,
+            linestyle="--", zorder=4, alpha=0.88)
+    ax.plot(sma200.index, sma200.values, color=C["hint"],   linewidth=0.75,
+            linestyle="-.", zorder=4, alpha=0.88)
+
+    # ATH and period Low vertical markers
+    hi_idx = norm.idxmax()
+    lo_idx = norm.idxmin()
+    ax.axvline(hi_idx, color=C["pos"], linewidth=0.7, linestyle="--", alpha=0.65, zorder=5)
+    ax.axvline(lo_idx, color=C["neg"], linewidth=0.7, linestyle="--", alpha=0.65, zorder=5)
+
+    # ATH / Low value annotations
+    hi_val = float(norm.max())
+    lo_val = float(norm.min())
+    ax.text(hi_idx, hi_val * 1.005, f"{hi_val:.0f}",
+            fontsize=4.0, color=C["pos"], ha="center", va="bottom", zorder=6)
+    ax.text(lo_idx, lo_val * 0.993, f"{lo_val:.0f}",
+            fontsize=4.0, color=C["neg"], ha="center", va="top", zorder=6)
+
+    ymin, ymax = norm.min() * 0.965, norm.max() * 1.045
+    ax.set_ylim(ymin, ymax)
+
+    # Grid + axes
+    ax.yaxis.grid(True, color=C["grid"], linewidth=0.35, zorder=0)
+    ax.set_axisbelow(True)
+    ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+    ax.xaxis.set_major_locator(mdates.YearLocator(2))
+    ax.tick_params(axis="x", rotation=0, labelsize=4.2, colors=C["text2"], length=2, pad=1)
+    ax.tick_params(axis="y", labelsize=4.0, colors=C["text2"], length=2, pad=1)
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:.0f}"))
+
+    # Chart title: short name + YTD badge
+    short_name = name.split()[0][:9]
+    ax.set_title(short_name, fontsize=5.5, fontweight="bold",
+                 color=C["text"], pad=1.5, loc="left")
+    if return_ytd is not None and not pd.isna(return_ytd):
+        ytd_col = C["pos_light"] if return_ytd >= 0 else C["neg_light"]
+        ax.text(0.99, 1.01, f"{return_ytd:+.1f}%", transform=ax.transAxes,
+                fontsize=4.8, color=ytd_col, ha="right", va="bottom", fontweight="bold")
+
+
+# ── Sector top / bottom 5 performers table ────────────────────────────────────
+
+def draw_sector_performers_table(ax, tickers: list[dict]):
+    """
+    Split two-panel table showing the top 5 (left) and bottom 5 (right)
+    sector constituents ranked by YTD return.
+
+    Columns: Rank | Ticker | YTD% | 1M% | P/E | Mkt Cap ($B)
+    """
+    ax.axis("off")
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+
+    if not tickers:
+        ax.text(0.5, 0.5, "No constituent data available",
+                ha="center", va="center", fontsize=8,
+                color=C["hint"], transform=ax.transAxes)
+        return
+
+    # Sort descending by YTD; handle None / NaN
+    sorted_t = sorted(tickers,
+                      key=lambda t: (t.get("return_ytd") or -999),
+                      reverse=True)
+    n     = len(sorted_t)
+    top5  = sorted_t[:min(5, n)]
+    bot5  = sorted_t[max(0, n - 5):]   # worst 5, ascending
+    # display worst-first in the Bottom panel
+    bot5_disp = list(reversed(bot5))
+
+    col_labels = ["#", "Ticker", "YTD%", "1M%", "P/E", "Mkt Cap"]
+    col_w      = [0.07, 0.19, 0.19, 0.16, 0.15, 0.18]   # sums to 0.94; scaled per half
+    half_w     = 0.465
+    gap        = 0.07
+    n_rows     = 5
+
+    total_rows = n_rows + 2          # title row + header row + 5 data rows
+    row_h      = 1.0 / total_rows
+
+    def _rect(x, y, w, h, fc):
+        ax.add_patch(mpatches.FancyBboxPatch(
+            (x, y), w, h, boxstyle="square,pad=0",
+            facecolor=fc, edgecolor="none",
+            transform=ax.transAxes, clip_on=False, zorder=2,
+        ))
+
+    def _text(x, y, txt, ha="center", color=C["text"], bold=False, size=6.5):
+        ax.text(x, y, txt, ha=ha, va="center", fontsize=size,
+                fontweight="bold" if bold else "normal",
+                color=color, transform=ax.transAxes, clip_on=False, zorder=3)
+
+    for ticker_list, x0, title_str, hdr_col, row_even, row_odd in [
+        (top5,      0.0,            "\u25b2  Top 5 Performers — YTD Return",
+         C["pos"],    C["pos_bg"],  C["surface"]),
+        (bot5_disp, half_w + gap,   "\u25bc  Bottom 5 Performers — YTD Return",
+         C["neg"],    C["neg_bg"],  C["surface"]),
+    ]:
+        # Section title row
+        title_y = 1 - row_h
+        _rect(x0, title_y, half_w, row_h, hdr_col)
+        _text(x0 + half_w / 2, title_y + row_h / 2, title_str,
+              color="white", bold=True, size=7.5)
+
+        # Column header row
+        col_y  = 1 - 2 * row_h
+        _rect(x0, col_y, half_w, row_h, C["primary_bg"])
+        scale  = half_w / sum(col_w)
+        x_cur  = x0
+        for lbl, cw in zip(col_labels, col_w):
+            _text(x_cur + cw * scale / 2, col_y + row_h / 2, lbl,
+                  color=C["primary_dark"], bold=True, size=6.0)
+            x_cur += cw * scale
+
+        # Data rows
+        for i in range(n_rows):
+            row_y = 1 - (i + 3) * row_h
+            bg    = row_even if i % 2 == 0 else row_odd
+            _rect(x0, row_y, half_w, row_h, bg)
+
+            if i < len(ticker_list):
+                tk    = ticker_list[i]
+                pe_v  = tk.get("pe", np.nan)
+                mc_v  = tk.get("market_cap", 0)
+                pe_s  = f"{pe_v:.1f}" if (pe_v is not None and not pd.isna(pe_v)) else "—"
+                mc_s  = f"{mc_v / 1e9:.0f}" if mc_v else "—"
+                vals  = [
+                    str(i + 1),
+                    tk.get("ticker", ""),
+                    _fmt(tk.get("return_ytd"), suffix="%"),
+                    _fmt(tk.get("return_1m"),  suffix="%"),
+                    pe_s, mc_s,
+                ]
+                fcs = [
+                    C["text2"],
+                    C["primary"],
+                    _val_color(tk.get("return_ytd")),
+                    _val_color(tk.get("return_1m")),
+                    C["text"], C["text"],
+                ]
+            else:
+                vals = ["—"] * len(col_labels)
+                fcs  = [C["hint"]] * len(col_labels)
+
+            x_cur = x0
+            for val, cw, fc in zip(vals, col_w, fcs):
+                _text(x_cur + cw * scale / 2, row_y + row_h / 2, val,
+                      color=fc, size=6.5)
+                x_cur += cw * scale
+
+
 # ── Market overview table ─────────────────────────────────────────────────────
 
 def draw_market_table(ax, rows: list[dict], category_label: str):

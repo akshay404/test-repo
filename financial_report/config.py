@@ -115,19 +115,19 @@ SECTORS = {
     "Materials":          {"etf": "XLB",  "color": C["grey"]},
 }
 
-# Top 5 tickers per sector for fundamental analysis
+# Top 10 tickers per sector for constituent performance analysis
 SECTOR_TICKERS = {
-    "Info. Technology":    ["AAPL",  "MSFT",  "NVDA",  "AVGO",  "ORCL"],
-    "Health Care":         ["LLY",   "UNH",   "JNJ",   "ABBV",  "MRK"],
-    "Financials":          ["BRK-B", "JPM",   "V",     "MA",    "BAC"],
-    "Cons. Discretionary": ["AMZN",  "TSLA",  "HD",    "BKNG",  "NKE"],
-    "Communication Svcs":  ["GOOGL", "META",  "NFLX",  "DIS",   "T"],
-    "Industrials":         ["GE",    "CAT",   "UNP",   "HON",   "RTX"],
-    "Consumer Staples":    ["WMT",   "PG",    "COST",  "KO",    "PEP"],
-    "Energy":              ["XOM",   "CVX",   "COP",   "EOG",   "SLB"],
-    "Utilities":           ["NEE",   "SO",    "DUK",   "AEP",   "D"],
-    "Real Estate":         ["PLD",   "AMT",   "EQIX",  "PSA",   "O"],
-    "Materials":           ["LIN",   "APD",   "SHW",   "FCX",   "NEM"],
+    "Info. Technology":    ["AAPL",  "MSFT",  "NVDA",  "AVGO",  "ORCL",  "AMD",  "INTC", "QCOM", "CRM",  "ADBE"],
+    "Health Care":         ["LLY",   "UNH",   "JNJ",   "ABBV",  "MRK",   "CVS",  "MDT",  "ISRG", "TMO",  "BMY"],
+    "Financials":          ["BRK-B", "JPM",   "V",     "MA",    "BAC",   "GS",   "MS",   "C",    "WFC",  "AXP"],
+    "Cons. Discretionary": ["AMZN",  "TSLA",  "HD",    "BKNG",  "NKE",   "LOW",  "TGT",  "GM",   "F",    "SBUX"],
+    "Communication Svcs":  ["GOOGL", "META",  "NFLX",  "DIS",   "T",     "CHTR", "EA",   "TTWO", "IPG",  "OMC"],
+    "Industrials":         ["GE",    "CAT",   "UNP",   "HON",   "RTX",   "MMM",  "DE",   "LMT",  "BA",   "FDX"],
+    "Consumer Staples":    ["WMT",   "PG",    "COST",  "KO",    "PEP",   "CL",   "MDLZ", "STZ",  "PM",   "MO"],
+    "Energy":              ["XOM",   "CVX",   "COP",   "EOG",   "SLB",   "OXY",  "PSX",  "VLO",  "HAL",  "DVN"],
+    "Utilities":           ["NEE",   "SO",    "DUK",   "AEP",   "D",     "EXC",  "PCG",  "AWK",  "ETR",  "WEC"],
+    "Real Estate":         ["PLD",   "AMT",   "EQIX",  "PSA",   "O",     "SPG",  "ARE",  "VTR",  "EQR",  "AVB"],
+    "Materials":           ["LIN",   "APD",   "SHW",   "FCX",   "NEM",   "PPG",  "NUE",  "VMC",  "MOS",  "ALB"],
 }
 
 # ── Street analyst consensus views (Feb 2026, simulated) ──────────────────────
